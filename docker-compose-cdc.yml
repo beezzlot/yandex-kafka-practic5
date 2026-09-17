@@ -29,7 +29,7 @@ services:
       - kafka-internal
 
   connect:
-    image: debezium/connect:3.0
+    image: quay.io/debezium/connect:3.4
     container_name: connect
     restart: unless-stopped
     depends_on:
