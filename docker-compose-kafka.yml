@@ -1,0 +1,198 @@
+networks:
+  kafka-internal:
+    external: true
+
+volumes:
+  kafka3-data:
+  kafka1-data:
+  kafka2-data:
+
+services:
+  kafka3:
+    image: confluentinc/cp-kafka:8.3.1
+    container_name: kafka3
+    hostname: kafka3
+    restart: unless-stopped
+    ports:
+      - "9081:9092"
+      - "9083:9094"
+    environment:
+      # Индентификатор CLUSTER_ID KAFKA. Одинаковый для всех нод Kafka в кластере.
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+
+      # Уникальный ID узла. Этот ID обязан совпадать с ID данного узла в
+      # KAFKA_CONTROLLER_QUORUM_VOTERS
+      KAFKA_NODE_ID: 3
+
+      # Роли узла.
+      # broker — хранит партиции, принимает producer/consumer-запросы.
+      # controller — входит в Raft quorum и хранит cluster metadata:
+      # топики, партиции, ACL, конфигурации, назначения лидеров.
+      # Combined mode допустим для dev/test; для production предпочтительнее
+      # вынести controller в отдельные узлы.
+      KAFKA_PROCESS_ROLES: "broker,controller"
+
+      # Адреса и порты, на которых Kafka ожидает соединения внутри контейнера.
+      #
+      # PLAINTEXT — внутренние подключения: другие контейнеры, brokers,
+      # Schema Registry, Kafka UI.
+      #
+      # CONTROLLER — служебный KRaft listener для controller quorum.
+      # Не предназначен для producer/consumer.
+      #
+      # EXTERNAL — listener для клиентов вне Docker-сети.
+      #
+      # 0.0.0.0 означает слушать на всех сетевых интерфейсах контейнера.
+      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:9094"
+
+      # Адреса, которые Kafka отдаёт клиентам в metadata.
+      #
+      # PLAINTEXT://kafka1:9092 доступен контейнерам сети externum-internal.
+      #
+      # EXTERNAL://localhost:9094 подходит только для клиентов,
+      # запущенных на том же Docker-хосте.
+      #
+      # Для клиентов с другой машины localhost нужно заменить, например, на:
+      # EXTERNAL://kafka.example.com:9094
+      # либо EXTERNAL://<IP_сервера>:9094.
+      #
+      # CONTROLLER здесь не указывается: это не client listener.
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka3:9092,EXTERNAL://localhost:9094"
+
+      # Соответствие логических listener-имён транспортным протоколам.
+      # Сейчас все соединения работают без TLS и SASL: PLAINTEXT.
+      #
+      # При включении TLS можно поменять, например:
+      # EXTERNAL:SSL
+      # или:
+      # EXTERNAL:SASL_SSL
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT"
+
+      # Имя listener-а, используемого broker-ами для обмена между собой:
+      # replication, fetch, ISR, leader/follower traffic.
+      #
+      # Значение должно присутствовать в KAFKA_LISTENERS и
+      # KAFKA_LISTENER_SECURITY_PROTOCOL_MAP.
+
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+
+      # Имя listener-а для коммуникации broker <-> KRaft controller.
+      # Для combined node он также используется собственным controller.
+      # Должен соответствовать имени из KAFKA_LISTENERS.
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+
+      # Статический состав controller quorum.
+      # Формат каждой записи: <node.id>@<hostname>:<controller-port>.
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka1:9093,2@kafka2:9093,3@kafka3:9093"
+
+      # Replication factor внутреннего топика __consumer_offsets,
+      # где Kafka хранит offsets consumer groups.
+      #
+      # Значение 3 означает: хранить три реплики — на kafka1, kafka2 и kafka3.
+      # Не задавайте число больше количества доступных broker-ов.
+
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+
+
+      # параметр указывает, на скольких разных брокерах (серверах) Kafka должна храниться копия истории транзакций
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+
+      # Минимальное число синхронных реплик, требуемых для записи
+      # в transaction state log с acks=all.
+      #
+      # Значение 1 позволяет использовать транзакции, когда доступен
+      # только один из двух broker-ов. Для более строгой надёжности
+      # при двух узлах можно поставить 2, но тогда отказ одного узла
+      # остановит transactional writes.
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+
+    volumes:
+      - kafka3-data:/var/lib/kafka/data
+    networks:
+      kafka-internal:
+
+  kafka1:
+    image: confluentinc/cp-kafka:8.3.1
+    container_name: kafka1
+    hostname: kafka1
+    restart: unless-stopped
+    ports:
+      - "9092:9092"
+      - "9094:9094"
+    environment:
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: "broker,controller"
+
+      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:9094"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka1:9092,EXTERNAL://localhost:9094"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT"
+
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka1:9093,2@kafka2:9093,3@kafka3:9093"
+
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 2
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+
+
+    volumes:
+      - kafka1-data:/var/lib/kafka/data
+
+    networks:
+      kafka-internal:
+
+  kafka2:
+    image: confluentinc/cp-kafka:8.3.1
+    container_name: kafka2
+    hostname: kafka2
+    restart: unless-stopped
+    ports:
+      - "9093:9092"
+      - "9095:9094"
+    environment:
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+
+      KAFKA_NODE_ID: 2
+      KAFKA_PROCESS_ROLES: "broker,controller"
+
+      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:9094"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka2:9092,EXTERNAL://localhost:9095"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT"
+
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka1:9093,2@kafka2:9093,3@kafka3:9093"
+
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 2
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+
+
+    volumes:
+      - kafka2-data:/var/lib/kafka/data
+
+    networks:
+      kafka-internal:
+
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    restart: unless-stopped
+    depends_on:
+      - kafka1
+      - kafka2
+      - kafka3
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: "local"
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka1:9092,kafka2:9092,kafka3:9092"
+    networks:
+      kafka-internal:

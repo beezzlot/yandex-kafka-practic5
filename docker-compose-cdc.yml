@@ -1,0 +1,100 @@
+networks:
+  kafka-internal:
+    external: true
+
+volumes:
+  postgres-data:
+  prometheus-data:
+  grafana-data:
+
+services:
+  postgres:
+    image: debezium/postgres:16
+    container_name: postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    command: >
+      -c wal_level=logical
+      -c max_replication_slots=4
+      -c max_wal_senders=4
+    volumes:
+      - ./init-db:/docker-entrypoint-initdb.d:ro
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - kafka-internal
+
+  connect:
+    image: debezium/connect:3.0
+    container_name: connect
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    ports:
+      - "8083:8083"   # REST API Kafka Connect
+      - "8080:8080"   # JMX Exporter (Prometheus)
+    environment:
+      BOOTSTRAP_SERVERS: kafka1:9092,kafka2:9092,kafka3:9092
+      GROUP_ID: debezium-connect
+
+      CONFIG_STORAGE_TOPIC: connect_configs
+      OFFSET_STORAGE_TOPIC: connect_offsets
+      STATUS_STORAGE_TOPIC: connect_statuses
+
+      CONFIG_STORAGE_REPLICATION_FACTOR: 3
+      OFFSET_STORAGE_REPLICATION_FACTOR: 3
+      STATUS_STORAGE_REPLICATION_FACTOR: 3
+
+      KAFKA_JMX_OPTS: >
+        -Dcom.sun.management.jmxremote
+        -Dcom.sun.management.jmxremote.authenticate=false
+        -Dcom.sun.management.jmxremote.ssl=false
+        -Dcom.sun.management.jmxremote.port=9998
+        -Dcom.sun.management.jmxremote.rmi.port=9998
+        -Djava.rmi.server.hostname=connect
+      KAFKA_OPTS: >
+        -javaagent:/opt/jmx_exporter/jmx_prometheus_javaagent.jar=8080:/opt/jmx_exporter/connect-jmx-config.yml
+    volumes:
+      - ./jmx_exporter/jmx_prometheus_javaagent.jar:/opt/jmx_exporter/jmx_prometheus_javaagent.jar:ro
+      - ./jmx_exporter/connect-jmx-config.yml:/opt/jmx_exporter/connect-jmx-config.yml:ro
+    networks:
+      - kafka-internal
+
+  prometheus:
+    image: prom/prometheus:v3.3.0
+    container_name: prometheus
+    restart: unless-stopped
+    depends_on:
+      - connect
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=1d'
+    networks:
+      - kafka-internal
+
+  grafana:
+    image: grafana/grafana:11.5.0
+    container_name: grafana
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - kafka-internal
