@@ -10,7 +10,7 @@ services:
     restart: unless-stopped
     working_dir: /app
     volumes:
-      - ./consumer.py:/app/consumer.py:ro
+      - ./app/consumer.py:/app/consumer.py:ro
       - ./requirements.txt:/app/requirements.txt:ro
     command: >
       bash -c "
