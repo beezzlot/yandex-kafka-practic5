@@ -36,7 +36,7 @@ services:
       - postgres
     ports:
       - "8083:8083"   # REST API Kafka Connect
-      - "8080:8080"   # JMX Exporter (Prometheus)
+      - "8081:8080"   # JMX Exporter (Prometheus)
     environment:
       BOOTSTRAP_SERVERS: kafka1:9092,kafka2:9092,kafka3:9092
       GROUP_ID: debezium-connect
