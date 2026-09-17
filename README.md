@@ -309,6 +309,10 @@ up{job="kafka-connect"}
 ```
 
 ```promql
+kafka_connect_worker_connector_running_task_count
+```
+
+```promql
 kafka_connect_worker_connector_count
 ```
 
@@ -317,11 +321,7 @@ kafka_connect_worker_task_count
 ```
 
 ```promql
-kafka_connect_connector_running_tasks
-```
-
-```promql
-kafka_connect_connector_failed_tasks
+kafka_connect_worker_connector_running_task_count
 ```
 
 ### Grafana

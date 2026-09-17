@@ -2,23 +2,39 @@ lowercaseOutputName: true
 lowercaseOutputLabelNames: true
 
 rules:
-  - pattern: "kafka.connect<type=connect-worker-metrics><>([^:]+)"
+  - pattern: 'kafka.connect<type=connect-worker-metrics><>([^:]+)'
     name: kafka_connect_worker_$1
+    type: GAUGE
 
-  - pattern: "kafka.connect<type=connector-metrics, connector=([^>]+)><>([^:]+)"
+  - pattern: 'kafka.connect<type=connect-worker-metrics, connector=([^>]+)><>([^:]+)'
+    name: kafka_connect_worker_$2
+    labels:
+      connector: '$1'
+    type: GAUGE
+
+  - pattern: 'kafka.connect<type=connector-metrics, connector=([^,]+)><>([^:]+)'
     name: kafka_connect_connector_$2
     labels:
-      connector: "$1"
+      connector: '$1'
+    type: GAUGE
 
-  - pattern: "kafka.connect<type=connector-task-metrics, connector=([^>]+), task=([^>]+)><>([^:]+)"
+  - pattern: 'kafka.connect<type=connector-task-metrics, connector=([^,]+), task=([^>]+)><>([^:]+)'
     name: kafka_connect_task_$3
     labels:
-      connector: "$1"
-      task: "$2"
+      connector: '$1'
+      task: '$2'
+    type: GAUGE
 
-  - pattern: "debezium\\.([^<]+)<type=connector-metrics, context=([^,]+), server=([^,]+)><>([^:]+)"
-    name: debezium_$1_$4
+  - pattern: 'kafka.connect<type=source-task-metrics, connector=([^,]+), task=([^>]+)><>([^:]+)'
+    name: kafka_connect_source_task_$3
     labels:
-      context: "$2"
-      server: "$3"
-      type: gauge
+      connector: '$1'
+      task: '$2'
+    type: GAUGE
+
+  - pattern: 'debezium.postgresql<type=connector-metrics, context=([^,]+), server=([^>]+)><>([^:]+)'
+    name: debezium_postgresql_$3
+    labels:
+      context: '$1'
+      server: '$2'
+    type: GAUGE
